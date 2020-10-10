@@ -23,13 +23,13 @@ FusionEKF::FusionEKF()
   Hj_ = MatrixXd(3, 4);
   
   //measurement covariance matrix - laser
-  R_laser_ << 0.0225, 0,
-              0, 0.0225;
+  R_laser_ << 0.0225,      0,
+                   0, 0.0225;
 
   //measurement covariance matrix - radar
-  R_radar_ << 0.09, 0, 0,
-              0, 0.0009, 0,
-              0, 0, 0.09;
+  R_radar_ << 0.09,      0,    0,
+                 0, 0.0009,    0,
+                 0,      0, 0.09;
   
   H_laser_ << 1, 0, 0, 0,
               0, 1, 0, 0;
@@ -59,10 +59,10 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
                0, 0, 100,   0,
                0, 0,   0, 100;
     
-    ekf_.F_ << 1, 0, 0.05, 0,
-               0, 1, 0, 0.05,
-               0, 0, 1, 0,
-               0, 0, 0, 1;
+    ekf_.F_ << 1, 0, 0.1,   0,
+               0, 1,   0, 0.1,
+               0, 0,   1,   0,
+               0, 0,   0,   1;
     if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR)
     {
       
@@ -83,6 +83,7 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
       float py = measurement_pack.raw_measurements_(1);
       ekf_.x_ << px, py, 0, 0;
     }
+    
     previous_timestamp_ = measurement_pack.timestamp_;
     // done initializing, no need to predict or update
     is_initialized_ = true;
@@ -90,21 +91,24 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
   }
   
   float dt = (measurement_pack.timestamp_ - previous_timestamp_) / 1000000.0;
-  previous_timestamp_ = measurement_pack.timestamp_;
+  previous_timestamp_ = measurement_pack.timestamp_; // update last timestamp
+  
+  // update Transition matrix
   ekf_.F_(0,2) = dt;
   ekf_.F_(1,3) = dt;
   
-  float a = dt*dt;
-  float b = a*dt/2;
-  float c = b*dt/2;
+  // calculate constant repeatative factors for simplification and speed
+  float a = dt*dt;  // dt^2
+  float b = a*dt/2; // dt^3/2
+  float c = b*dt/2; // dt^4/4
 
   float noise_ax = 9;
   float noise_ay = 9;
-  
-  ekf_.Q_ << c*noise_ax, 0, b*noise_ax, 0,
-             0, c*noise_ay, 0, b*noise_ay,
-             b*noise_ax, 0, a*noise_ax, 0,
-             0, b*noise_ay, 0, a*noise_ay;
+  // update Process covariance matrix
+  ekf_.Q_ << c*noise_ax,          0, b*noise_ax,          0,
+                      0, c*noise_ay,          0, b*noise_ay,
+             b*noise_ax,          0, a*noise_ax,          0,
+                      0, b*noise_ay,          0, a*noise_ay;
   
   
   // Prediction
